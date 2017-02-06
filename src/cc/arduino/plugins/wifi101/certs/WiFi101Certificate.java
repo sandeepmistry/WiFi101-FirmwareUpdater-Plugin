@@ -34,7 +34,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.TimeZone;
 
 import javax.xml.bind.DatatypeConverter;
 
@@ -69,13 +71,15 @@ public class WiFi101Certificate {
 		byte[] name1hash = getSubjectValueHash(x509);
 		byte[] notBefore = encodeTimestamp(x509.getNotBefore());
 		byte[] notAfter = encodeTimestamp(x509.getNotAfter());
+		byte[] type = {0x01, 0x00, 0x00, 0x00};
 
 		ByteArrayOutputStream res = new ByteArrayOutputStream();
 		res.write(name1hash);
-		res.write(publicModulusLen);
-		res.write(publicExponentLen);
 		res.write(notBefore);
 		res.write(notAfter);
+		res.write(type);
+		res.write(publicModulusLen);
+		res.write(publicExponentLen);
 		res.write(publicModulus);
 		res.write(publicExponent);
 		while (res.size() % 4 != 0)
@@ -99,11 +103,30 @@ public class WiFi101Certificate {
 		return ret;
 	}
 
-	private static byte[] encodeTimestamp(Date notBefore) throws IOException {
+	private static byte[] encodeTimestamp(Date timestamp) throws IOException {
 		ByteArrayOutputStream encoded = new ByteArrayOutputStream();
-		ASN1OutputStream asn1 = new ASN1OutputStream(encoded);
-		asn1.writeObject(new Time(notBefore));
-		return Arrays.copyOfRange(encoded.toByteArray(), 2, 22);
+
+		TimeZone timeZone = TimeZone.getTimeZone("UTC");
+		Calendar cal = Calendar.getInstance(timeZone);
+		cal.setTime(timestamp);
+
+		int year = cal.get(Calendar.YEAR);
+		int month = cal.get(Calendar.MONTH) + 1;
+		int day = cal.get(Calendar.DAY_OF_MONTH);
+		int hour = cal.get(Calendar.HOUR_OF_DAY);
+		int minutes = cal.get(Calendar.MINUTE);
+		int seconds = cal.get(Calendar.SECOND);
+
+		encoded.write((byte)(year & 0xff));
+		encoded.write((byte)((year >> 8) & 0xff));
+		encoded.write((byte)(month));
+		encoded.write((byte)(day));
+		encoded.write((byte)(hour));
+		encoded.write((byte)(minutes));
+		encoded.write((byte)(seconds));
+		encoded.write((byte)(0xcc));
+
+		return encoded.toByteArray();
 	}
 
 	private static byte[] getSubjectValueHash(X509Certificate x509) throws NoSuchAlgorithmException, IOException {
